@@ -394,6 +394,7 @@ class ClaudeLauncher:
         env_vars = os.environ.copy()
         env_vars["ANTHROPIC_BASE_URL"] = url
         env_vars["ANTHROPIC_AUTH_TOKEN"] = key
+        env_vars["ANTHROPIC_MODEL"] = "opus[1m]"  # 👈 新增这一行，强制启用 1M 上下文 Opus 模型
         
         # 推荐使用 powershell 启动，体验更佳
         cmd_args = ['cmd.exe', '/c', 'start', 'powershell.exe', '-NoExit', '-Command', f'claude {flags}']
