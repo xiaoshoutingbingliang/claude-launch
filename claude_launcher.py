@@ -10,6 +10,67 @@ CONFIG_FILE = os.path.join(os.path.expanduser("~"), "claude_launcher_config.json
 
 def get_sessions_for_project(project_path):
     """
+    终极版：全盘全局雷达
+    直接无视官方复杂的项目绑定逻辑，扫描整个系统底层的聊天记录！
+    """
+    claude_dir = os.path.join(os.path.expanduser("~"), ".claude")
+    sessions = []
+    
+    if not os.path.exists(claude_dir):
+        return []
+        
+    all_files = []
+    # 1. 暴力递归扫描 .claude 下所有的 .jsonl 记录文件
+    for root, dirs, files in os.walk(claude_dir):
+        # 跳过无关的缓存目录，加快秒开速度
+        if "cache" in root or "backups" in root or "shell-snapshots" in root or "session-env" in root:
+            continue
+        for file in files:
+            if file.endswith(".jsonl") and file != "history.jsonl":
+                all_files.append(os.path.join(root, file))
+                
+    # 2. 逐个解析文件的最后修改时间，并提取聊天内容作为标题
+    for file_path in all_files:
+        sess_id = os.path.basename(file_path).replace(".jsonl", "")
+        try:
+            mtime = os.path.getmtime(file_path)
+        except:
+            continue
+            
+        time_str = datetime.datetime.fromtimestamp(mtime).strftime('%Y-%m-%d %H:%M')
+        title = "未命名会话"
+        
+        try:
+            with open(file_path, "r", encoding="utf-8") as f:
+                for line in f:
+                    try:
+                        msg = json.loads(line)
+                        # 找到你发给 AI 的第一句话
+                        if msg.get("type") == "message" and msg.get("role") == "user":
+                            content = msg.get("content", "")
+                            if isinstance(content, list):
+                                text_blocks = [b.get("text") for b in content if b.get("type") == "text"]
+                                content = " ".join(text_blocks)
+                            if isinstance(content, str) and content.strip():
+                                title = content.strip()[:35] + ("..." if len(content.strip()) > 35 else "")
+                                break
+                    except:
+                        continue
+        except Exception:
+            pass
+            
+        sessions.append({
+            "id": sess_id,
+            "title": title,
+            "time": time_str,
+            "mtime": mtime
+        })
+        
+    # 3. 按时间从最新到最旧排序，返回最近的 30 条全局聊天记录
+    sessions.sort(key=lambda x: x["mtime"], reverse=True)
+    return sessions[:30]
+    
+    """
     全自动解析算法：
     自动在 ~/.claude/projects/ 目录下寻找当前项目对应的 Claude 历史会话。
     提取每个会话的 UUID、修改时间以及第一条用户消息作为标题。
